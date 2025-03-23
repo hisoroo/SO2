@@ -107,10 +107,9 @@ int main(int argc, char *argv[]) {
       rightFork = forks[i].get();
     }
 
-    philosophers.push_back(
-        thread([&, i, leftFork,  rightFork]() {
-          philosopherLoop(i + 1, *leftFork, *rightFork, outMutex);
-        }));
+    philosophers.push_back(thread([&, i, leftFork, rightFork]() {
+      philosopherLoop(i + 1, *leftFork, *rightFork, outMutex);
+    }));
   }
 
   for (auto &t : philosophers) {
