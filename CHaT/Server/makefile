@@ -1,8 +1,8 @@
 CXX = g++
-CXXFLAGS = -Wall -std=c++11 -pthread
+CXXFLAGS = -Wall -std=c++17 -pthread
 
 TARGET = server
-SRC = main.cpp Server.cpp
+SRC = main.cpp Server.cpp utils/Utils.cpp
 
 .PHONY: all clean run test
 
