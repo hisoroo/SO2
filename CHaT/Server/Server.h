@@ -2,8 +2,10 @@
 #define SERVER_H
 
 #include <arpa/inet.h>
+#include <atomic>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 struct Client {
@@ -17,18 +19,21 @@ public:
   ~Server();
 
   void run();
+  void stop();
 
 private:
   int serverSocket;
   int port;
   struct sockaddr_in serverAddr;
 
-  void broadcastMessage(const std::string &username, const std::string &msg,
-                        int excludeSocket);
+  std::vector<Client> clients;
+  std::mutex clientsMutex;
+  std::vector<std::thread> clientThreads;
+  std::atomic_bool running;
 
+  void broadcastMessage(const std::string &msg, int excludeSocket);
   void handleClient(int clientSocket);
-
-  void printAddressAndPort();
+  void printIP();
 };
 
 #endif // SERVER_H

@@ -1,66 +1,31 @@
 #include "Server.h"
+#include "utils/Utils.h"
 
 #include <algorithm>
 #include <arpa/inet.h>
-#include <chrono>
 #include <cstring>
 #include <ctime>
-#include <fstream>
-#include <iomanip>
+#include <ifaddrs.h>
 #include <iostream>
+#include <net/if.h>
 #include <netdb.h>
-#include <sstream>
+#include <netinet/in.h>
+#include <stdexcept>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
 
-std::vector<Client> clients;
-std::mutex clientsMutex;
-
-std::mutex fileMutex;
-
-std::string getLogFilename() {
-  auto now = std::chrono::system_clock::now();
-  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-  std::tm local_tm;
-  localtime_r(&now_time_t, &local_tm);
-  std::ostringstream oss;
-  oss << "chat_log_" << std::put_time(&local_tm, "%Y-%m-%d") << ".txt";
-  return oss.str();
-}
-
-void saveMessageToFile(const std::string &message) {
-  std::lock_guard<std::mutex> lock(fileMutex);
-  std::string filename = getLogFilename();
-  std::ofstream outFile(filename, std::ios::app);
-  if (outFile.is_open()) {
-    auto now = std::chrono::system_clock::now();
-    std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-    std::tm local_tm;
-    localtime_r(&now_time_t, &local_tm); 
-
-    std::ostringstream timeStream;
-    timeStream << std::put_time(&local_tm, "%H:%M:%S");
-
-    outFile << "[" << timeStream.str() << "] " << message << "\n";
-  } else {
-    std::cerr << "Error: Unable to open " << filename << " for writing.\n";
-  }
-}
-
-Server::Server(int port) : serverSocket(-1), port(port) {
+Server::Server(int port) : serverSocket(-1), port(port), running(false) {
   serverSocket = socket(AF_INET, SOCK_STREAM, 0);
   if (serverSocket < 0) {
-    std::cerr << "Error creating socket\n";
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("Error creating socket");
   }
 
   int opt = 1;
   if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) <
       0) {
-    std::cerr << "setsockopt failed\n";
     close(serverSocket);
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("setsockopt failed");
   }
 
   std::memset(&serverAddr, 0, sizeof(serverAddr));
@@ -70,51 +35,66 @@ Server::Server(int port) : serverSocket(-1), port(port) {
 
   if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) <
       0) {
-    std::cerr << "Error binding socket\n";
     close(serverSocket);
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("Error binding socket");
   }
 
   if (listen(serverSocket, 5) < 0) {
-    std::cerr << "Error listening on socket\n";
     close(serverSocket);
-    exit(EXIT_FAILURE);
+    throw std::runtime_error("Error listening on socket");
   }
 
-  printAddressAndPort();
+  printIP();
 }
 
-Server::~Server() { close(serverSocket); }
-
-void Server::printAddressAndPort() {
-  sockaddr_in addr;
-  socklen_t addrlen = sizeof(addr);
-  if (getsockname(serverSocket, (sockaddr *)&addr, &addrlen) == -1) {
-    std::cerr << "Error getting local address" << std::endl;
-    return;
+Server::~Server() {
+  stop();
+  if (serverSocket != -1) {
+    close(serverSocket);
   }
-  char ip[INET_ADDRSTRLEN];
-  if (inet_ntop(AF_INET, &addr.sin_addr, ip, sizeof(ip)) == nullptr) {
-    std::cerr << "Error converting IP address" << std::endl;
-    return;
-  }
-  std::cout << "Server is listening on " << ip << ":" << ntohs(addr.sin_port)
-            << std::endl;
 }
 
-void Server::broadcastMessage(const std::string &username,
-                              const std::string &msg, int excludeSocket) {
+void Server::printIP() {
+  struct ifaddrs *ifaddr, *i;
+  if (getifaddrs(&ifaddr) == -1) {
+    perror("getifaddrs");
+    return;
+  }
+
+  for (i = ifaddr; i != nullptr; i = i->ifa_next) {
+    if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET ||
+        (i->ifa_name && strcmp(i->ifa_name, "wlan0") != 0))
+      continue;
+    else {
+      char host[NI_MAXHOST];
+      int s = getnameinfo(i->ifa_addr, sizeof(struct sockaddr_in), host,
+                          NI_MAXHOST, nullptr, 0, NI_NUMERICHOST);
+      if (s == 0) {
+        std::cout << "Connect via " << i->ifa_name << ": " << host << std::endl;
+      }
+    }
+  }
+  freeifaddrs(ifaddr);
+}
+
+void Server::broadcastMessage(const std::string &msg, int excludeSocket) {
   std::lock_guard<std::mutex> lock(clientsMutex);
-  std::string fullMessage = username + ": " + msg;
 
-  saveMessageToFile(fullMessage);
+  saveMessageToFile(msg);
 
   for (const auto &client : clients) {
     if (client.socket == excludeSocket)
       continue;
-    if (send(client.socket, fullMessage.c_str(), fullMessage.size(), 0) < 0) {
-      std::cerr << "Failed to send message to client (" << client.socket
-                << ")\n";
+    size_t totalSent = 0;
+    while (totalSent < msg.size()) {
+      ssize_t sent = send(client.socket, msg.c_str() + totalSent,
+                          msg.size() - totalSent, 0);
+      if (sent < 0) {
+        std::cerr << "Failed to send message to client (" << client.socket
+                  << ")\n";
+        break;
+      }
+      totalSent += sent;
     }
   }
 }
@@ -148,7 +128,7 @@ void Server::handleClient(int clientSocket) {
     std::cout << "Message from " << username << " (" << clientSocket
               << "): " << message << std::endl;
 
-    broadcastMessage(username, message, clientSocket);
+    broadcastMessage(message, clientSocket);
   }
 
   close(clientSocket);
@@ -165,12 +145,29 @@ void Server::handleClient(int clientSocket) {
 }
 
 void Server::run() {
-  while (true) {
+  running = true;
+  while (running) {
     int clientSocket = accept(serverSocket, nullptr, nullptr);
     if (clientSocket < 0) {
+      if (!running)
+        break;
       std::cerr << "Error accepting connection\n";
       continue;
     }
-    std::thread(&Server::handleClient, this, clientSocket).detach();
+    clientThreads.push_back(
+        std::thread(&Server::handleClient, this, clientSocket));
+  }
+  for (auto &th : clientThreads) {
+    if (th.joinable()) {
+      th.join();
+    }
+  }
+}
+
+void Server::stop() {
+  running = false;
+  if (serverSocket != -1) {
+    close(serverSocket);
+    serverSocket = -1;
   }
 }
