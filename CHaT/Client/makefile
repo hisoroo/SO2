@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -std=c++17 -pthread
-
+LDLIBS = -lncurses
 TARGET = client
 SRC = main.cpp Client.cpp
 

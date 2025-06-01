@@ -63,7 +63,8 @@ void Server::printIP() {
 
   for (i = ifaddr; i != nullptr; i = i->ifa_next) {
     if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET ||
-        (i->ifa_name && strcmp(i->ifa_name, "wlan0") != 0))
+        (i->ifa_name && strcmp(i->ifa_name, "wlan0") != 0 &&
+         strcmp(i->ifa_name, "en0") != 0))
       continue;
     else {
       char host[NI_MAXHOST];
