@@ -111,13 +111,13 @@ Zakładając, że repozytorium zostało już sklonowane zgodnie z instrukcjami d
 
 3.  **Kompilacja klienta:**
     - Upewnij się, że masz zainstalowany kompilator `g++`.
-    <br>
+    
     > **Uwaga:**
     > - Wersja klienta z interfejsem terminalowym (TUI) znajduje się na gałęzi `feature/gui`. Aby z niej skorzystać, należy najpierw przełączyć się na tę gałąź (`git switch feature/gui`).
     > - Do kompilacji tej wersji klienta wymagana jest biblioteka `ncurses`.
     >     - **Linux:** Zainstaluj `ncurses` za pomocą menedżera pakietów, np. `sudo apt-get install libncurses-dev` (dla systemów Debian/Ubuntu) lub `sudo pacman -S ncurses` (dla Arch Linux).
     >     - **macOS:** `ncurses` jest chyba preinstalowane. Jeśli nie, można je zainstalować np. przez Homebrew (`brew install ncurses`).
-    <br>
+
     - Przejdź do katalogu klienta:
       ```bash
       cd Client
