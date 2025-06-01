@@ -111,6 +111,11 @@ Zakładając, że repozytorium zostało już sklonowane zgodnie z instrukcjami d
 
 3.  **Kompilacja klienta:**
     - Upewnij się, że masz zainstalowany kompilator `g++`.
+    > **Uwaga:**
+    > - Wersja klienta z interfejsem terminalowym (TUI) znajduje się na gałęzi `feature/gui`. Aby z niej skorzystać, należy najpierw przełączyć się na tę gałąź (`git switch feature/gui`).
+    > - Do kompilacji tej wersji klienta wymagana jest biblioteka `ncurses`.
+    >     - **Linux:** Zainstaluj `ncurses` za pomocą menedżera pakietów, np. `sudo apt-get install libncurses-dev` (dla systemów Debian/Ubuntu) lub `sudo pacman -S ncurses` (dla Arch Linux).
+    >     - **macOS:** `ncurses` jest chyba preinstalowane. Jeśli nie, można je zainstalować np. przez Homebrew (`brew install ncurses`).
     - Przejdź do katalogu klienta:
       ```bash
       cd Client
@@ -134,7 +139,7 @@ Zakładając, że repozytorium zostało już sklonowane zgodnie z instrukcjami d
       ```bash
       ./server
       ```
-    - Serwer powinien wyświetlić swój adres IP i port, na którym nasłuchuje.
+    - Serwer powinien wyświetlić swój adres IP, domyślnie port ustawiony na 8080. Można go zmienić używając flagi `-p` lub `--port`, np. `./server -p 1234`.
 
 5.  **Uruchomienie klienta:**
     - Otwórz nowy terminal.
@@ -142,7 +147,7 @@ Zakładając, że repozytorium zostało już sklonowane zgodnie z instrukcjami d
       ```bash
       cd CHaT/Client
       ```
-    - Uruchom klienta, podając adres IP i port serwera wyświetlony w konsoli serwera:
+    - Uruchom klienta:
       ```bash
       ./client
 
